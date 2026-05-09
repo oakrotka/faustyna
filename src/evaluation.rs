@@ -1,15 +1,24 @@
 use std::cmp::Ordering;
 
 use chess::{Board, BoardStatus, ChessMove, Color, MoveGen, Piece};
+use rapidhash::RapidHashMap;
 
-const DEPTH: u64 = 3;
+const DEPTH: u64 = 4;
 
 pub fn choose_move(board: &Board) -> ChessMove {
     let mut alpha = f64::NEG_INFINITY;
     let mut beta = f64::INFINITY;
+    let mut transposition_table = RapidHashMap::<u64, f64>::default();
+
     let (choice, score) = MoveGen::new_legal(board)
         .map(|chess_move| {
-            let score = -alpha_beta(board.make_move_new(chess_move), &mut alpha, &mut beta, DEPTH);
+            let score = -alpha_beta(
+                board.make_move_new(chess_move),
+                &mut alpha,
+                &mut beta,
+                DEPTH,
+                &mut transposition_table,
+            );
             (chess_move, score)
         })
         .max_by(|(_, val1), (_, val2)| val1.partial_cmp(val2).unwrap_or(Ordering::Less))
@@ -18,9 +27,21 @@ pub fn choose_move(board: &Board) -> ChessMove {
     choice
 }
 
-fn alpha_beta(board: Board, alpha: &mut f64, beta: &mut f64, depth: u64) -> f64 {
+fn alpha_beta(
+    board: Board,
+    alpha: &mut f64,
+    beta: &mut f64,
+    depth: u64,
+    transposition_table: &mut RapidHashMap<u64, f64>,
+) -> f64 {
+    if let Some(score) = transposition_table.get(&board.get_hash()) {
+        return *score;
+    }
+
     if depth == 0 {
-        return evaluate(board);
+        let score = evaluate(board);
+        transposition_table.insert(board.get_hash(), score);
+        return score;
     }
 
     match board.status() {
@@ -33,9 +54,11 @@ fn alpha_beta(board: Board, alpha: &mut f64, beta: &mut f64, depth: u64) -> f64 
                     &mut -*beta,
                     &mut -*alpha,
                     depth - 1,
+                    transposition_table,
                 );
 
                 if score >= *beta {
+                    transposition_table.insert(board.get_hash(), *beta);
                     return *beta;
                 }
                 if score > *alpha {
@@ -43,6 +66,7 @@ fn alpha_beta(board: Board, alpha: &mut f64, beta: &mut f64, depth: u64) -> f64 
                 }
             }
 
+            transposition_table.insert(board.get_hash(), *alpha);
             *alpha
         }
     }
