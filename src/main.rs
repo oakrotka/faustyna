@@ -1,3 +1,5 @@
+use faustyna::uci;
+
 fn main() {
-    println!("Hello, world!");
+    uci::event_loop();
 }
