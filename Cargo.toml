@@ -1,0 +1,10 @@
+[package]
+name = "faustyna"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chess = "3.2.0"
+fastrand = "2.4.1"
+memchr = "2.8.0"
+regex = "1.12.3"
