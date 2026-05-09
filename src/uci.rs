@@ -4,10 +4,10 @@ use std::{
     str::FromStr,
 };
 
-use chess::{Board, MoveGen};
+use chess::Board;
 use vampirc_uci::{self as uci, Serializable, UciMessage};
 
-use crate::ENGINE_NAME;
+use crate::{ENGINE_NAME, evaluation};
 
 pub fn event_loop() -> ! {
     let stdin = io::stdin();
@@ -52,8 +52,7 @@ pub fn event_loop() -> ! {
                 state = game;
             }
             UciMessage::Go { .. } => {
-                let legals = MoveGen::new_legal(&state);
-                let choice = fastrand::choice(legals).expect("no legal moves");
+                let choice = evaluation::choose_move(&state);
                 let response = UciMessage::BestMove {
                     best_move: choice,
                     ponder: None,
