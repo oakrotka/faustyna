@@ -1,4 +1,8 @@
-use std::{io::{self, BufRead}, process, str::FromStr};
+use std::{
+    io::{self, BufRead},
+    process,
+    str::FromStr,
+};
 
 use chess::{Board, MoveGen};
 use vampirc_uci::{self as uci, Serializable, UciMessage};
@@ -14,7 +18,10 @@ pub fn event_loop() -> ! {
     loop {
         command.clear();
         {
-            let n = stdin.lock().read_line(&mut command).expect("could not read from stdin");
+            let n = stdin
+                .lock()
+                .read_line(&mut command)
+                .expect("could not read from stdin");
             if n == 0 {
                 panic!("sudden EOF on stdin");
             }
@@ -22,12 +29,16 @@ pub fn event_loop() -> ! {
         match uci::parse_one(&command) {
             UciMessage::Uci => {
                 println!("id name {}", ENGINE_NAME);
-                println!("uciok")
+                println!("uciok");
             }
             UciMessage::IsReady => {
                 println!("readyok");
             }
-            UciMessage::Position { startpos, fen, moves } => {
+            UciMessage::Position {
+                startpos,
+                fen,
+                moves,
+            } => {
                 let mut game = match fen {
                     Some(fen_str) => Board::from_str(fen_str.as_str()).expect("got invalid FEN"),
                     None => {
@@ -43,7 +54,11 @@ pub fn event_loop() -> ! {
             UciMessage::Go { .. } => {
                 let legals = MoveGen::new_legal(&state);
                 let choice = fastrand::choice(legals).expect("no legal moves");
-                let response = UciMessage::BestMove { best_move: choice, ponder: None }.serialize();
+                let response = UciMessage::BestMove {
+                    best_move: choice,
+                    ponder: None,
+                }
+                .serialize();
                 println!("{response}");
             }
             UciMessage::Quit => {
