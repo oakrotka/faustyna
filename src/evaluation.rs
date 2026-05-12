@@ -158,4 +158,14 @@ mod test {
             100.0 * (1 - (8 + 2 * 3 + 2 * 3 + 2 * 5 + 9)) as f64
         );
     }
+
+    #[test]
+    fn dont_give_away_pieces() {
+        let position = "r1bqkbnr/2pn2Pp/8/1p6/3PN3/p1P2N2/P4P1P/R1BQKB1R b KQkq - 0 13";
+        let board = Board::from_str(position).unwrap();
+        assert_eq!(
+            choose_move(&board),
+            ChessMove::new(Square::F8, Square::G7, None)
+        );
+    }
 }
