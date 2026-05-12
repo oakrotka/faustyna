@@ -5,7 +5,7 @@ use rapidhash::RapidHashMap;
 
 const MAX_PLY: u64 = u64::MAX;
 
-const TIME_TO_THINK: Duration = Duration::from_millis(10);
+const TIME_TO_THINK: Duration = Duration::from_millis(100);
 
 const ATTACK_PIECES: [Piece; 5] = [
     Piece::Pawn,
@@ -49,9 +49,7 @@ pub fn choose_move(board: Board) -> ChessMove {
             (previous_state, choice, score) = (found_state, found_move, found_score);
         }
 
-        if score == f64::INFINITY
-            || previous_state.status() != BoardStatus::Ongoing
-            || start_time.elapsed() >= TIME_TO_THINK
+        if previous_state.status() != BoardStatus::Ongoing || start_time.elapsed() >= TIME_TO_THINK
         {
             break;
         }
