@@ -6,6 +6,7 @@ use rapidhash::RapidHashMap;
 const MAX_PLY: u64 = u64::MAX;
 
 const TIME_TO_THINK: Duration = Duration::from_millis(100);
+const TIME_CHECK_FREQUENCY: u8 = 50;
 
 const ATTACK_PIECES: [Piece; 5] = [
     Piece::Pawn,
@@ -25,16 +26,22 @@ pub fn choose_move(board: Board) -> ChessMove {
 
     for depth in 1..MAX_PLY {
         let mut transposition_table = RapidHashMap::<u64, f64>::default();
+        let mut iterations = TIME_CHECK_FREQUENCY;
 
         // searching the previously found best move first for better alpha pruning
         if depth > 1 {
-            (previous_state, _, score) = search_moves(
+            (previous_state, _, score) = match search_moves(
                 previous_state,
                 f64::INFINITY,
                 f64::NEG_INFINITY,
                 1,
                 &mut transposition_table,
-            );
+                &mut iterations,
+                start_time,
+            ) {
+                Some(res) => res,
+                None => return choice,
+            };
 
             if score == f64::INFINITY {
                 break;
@@ -42,8 +49,18 @@ pub fn choose_move(board: Board) -> ChessMove {
         }
 
         // search the tree thoroughly this time
-        let (found_state, found_move, found_score) =
-            search_moves(board, score, f64::INFINITY, depth, &mut transposition_table);
+        let (found_state, found_move, found_score) = match search_moves(
+            board,
+            score,
+            f64::INFINITY,
+            depth,
+            &mut transposition_table,
+            &mut iterations,
+            start_time,
+        ) {
+            Some(res) => res,
+            None => return choice,
+        };
 
         if found_score > score || depth == 1 {
             (previous_state, choice, score) = (found_state, found_move, found_score);
@@ -59,22 +76,44 @@ pub fn choose_move(board: Board) -> ChessMove {
     choice
 }
 
+/// Returns the best move found from the given position, its score and the state of the board at the
+/// deepest searched moment. May return None if time runs out.
 fn search_moves(
     board: Board,
     alpha: f64,
     beta: f64,
     depth: u64,
     transposition_table: &mut RapidHashMap<u64, f64>,
-) -> (Board, ChessMove, f64) {
+    iterations: &mut u8,
+    start_time: Instant,
+) -> Option<(Board, ChessMove, f64)> {
+    if *iterations == 0 {
+        if start_time.elapsed() >= TIME_TO_THINK {
+            return None;
+        }
+        *iterations = TIME_CHECK_FREQUENCY;
+    }
+    *iterations -= 0;
+
     if let Some(score) = transposition_table.get(&board.get_hash()) {
-        return (Board::default(), ChessMove::default(), *score);
+        return Some((Board::default(), ChessMove::default(), *score));
     }
 
-    let (best_board, best_move, score) = alpha_beta(board, alpha, beta, depth, transposition_table);
+    let res = alpha_beta(
+        board,
+        alpha,
+        beta,
+        depth,
+        transposition_table,
+        iterations,
+        start_time,
+    );
 
-    transposition_table.insert(board.get_hash(), score);
+    if let Some((_, _, score)) = res {
+        transposition_table.insert(board.get_hash(), score);
+    }
 
-    (best_board, best_move, score)
+    res
 }
 
 fn alpha_beta(
@@ -83,16 +122,18 @@ fn alpha_beta(
     beta: f64,
     depth: u64,
     transposition_table: &mut RapidHashMap<u64, f64>,
-) -> (Board, ChessMove, f64) {
+    iterations: &mut u8,
+    start_time: Instant,
+) -> Option<(Board, ChessMove, f64)> {
     if depth == 0 {
         let score = evaluate(board);
         transposition_table.insert(board.get_hash(), score);
-        return (board, ChessMove::default(), score);
+        return Some((board, ChessMove::default(), score));
     }
 
     match board.status() {
-        BoardStatus::Checkmate => (board, ChessMove::default(), f64::NEG_INFINITY),
-        BoardStatus::Stalemate => (board, ChessMove::default(), f64::NEG_INFINITY),
+        BoardStatus::Checkmate => Some((board, ChessMove::default(), f64::NEG_INFINITY)),
+        BoardStatus::Stalemate => Some((board, ChessMove::default(), f64::NEG_INFINITY)),
         BoardStatus::Ongoing => {
             let mut best_state = Board::default();
             let mut best_move = ChessMove::default();
@@ -104,11 +145,13 @@ fn alpha_beta(
                     -alpha,
                     depth - 1,
                     transposition_table,
-                );
+                    iterations,
+                    start_time,
+                )?;
                 let score = -neg_score;
 
                 if score >= beta {
-                    return (found_state, chess_move, score);
+                    return Some((found_state, chess_move, score));
                 }
                 if score > alpha {
                     best_state = found_state;
@@ -117,7 +160,7 @@ fn alpha_beta(
                 }
             }
 
-            (best_state, best_move, alpha)
+            Some((best_state, best_move, alpha))
         }
     }
 }
