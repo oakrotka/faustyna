@@ -93,7 +93,7 @@ fn search_moves(
         }
         *iterations = TIME_CHECK_FREQUENCY;
     }
-    *iterations -= 0;
+    *iterations -= 1;
 
     if let Some(score) = transposition_table.get(&board.get_hash()) {
         return Some((Board::default(), ChessMove::default(), *score));
