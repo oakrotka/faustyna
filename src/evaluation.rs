@@ -1,9 +1,17 @@
 use std::cmp::Ordering;
 
-use chess::{Board, BoardStatus, ChessMove, Color, MoveGen, Piece};
+use chess::{BitBoard, Board, BoardStatus, ChessMove, Color, MoveGen, Piece};
 use rapidhash::RapidHashMap;
 
 const DEPTH: u64 = 4;
+
+const ATTACK_PIECES: [Piece; 5] = [
+    Piece::Pawn,
+    Piece::Knight,
+    Piece::Bishop,
+    Piece::Rook,
+    Piece::Queen,
+];
 
 pub fn choose_move(board: &Board) -> ChessMove {
     let mut alpha = f64::NEG_INFINITY;
@@ -73,26 +81,56 @@ fn alpha_beta(
 }
 
 fn evaluate(board: Board) -> f64 {
-    let evaluate = |color: Color| -> u32 {
+    let evaluate = |color: Color| -> f64 {
+        let mut color_score: f64 = 0.0;
+
         let color_board = board.color_combined(color);
-        [
-            (Piece::Pawn, 1),
-            (Piece::Knight, 3),
-            (Piece::Bishop, 3),
-            (Piece::Rook, 5),
-            (Piece::Queen, 9),
-        ]
-        .into_iter()
-        .map(|(piece, weight)| weight * (board.pieces(piece) & color_board).popcnt())
-        .sum()
+        color_score += ATTACK_PIECES
+            .into_iter()
+            .map(|piece| piece_weight(&piece) * (board.pieces(piece) & color_board).popcnt() as f64)
+            .sum::<f64>();
+
+        let color_board = match board.side_to_move() {
+            side if side == color => board,
+            _ => match board.null_move() {
+                Some(opponent_board) => opponent_board,
+                None => {
+                    // FIXME: evaluation heuristics like pinned opponent's pieces will not work when
+                    // we are in check
+                    return color_score;
+                }
+            },
+        };
+
+        color_score -= bitboard_piece_value(*color_board.pinned(), &board) / 10.0;
+        color_score -= 90.0 * color_board.checkers().popcnt() as f64;
+
+        color_score
     };
 
-    let score = (evaluate(Color::White) - evaluate(Color::Black)) as f64;
+    let score = evaluate(Color::White) - evaluate(Color::Black);
 
     match board.side_to_move() {
         Color::White => score,
         Color::Black => -score,
     }
+}
+
+#[inline]
+fn piece_weight(piece: &Piece) -> f64 {
+    match *piece {
+        Piece::Pawn => 100.0,
+        Piece::Knight => 300.0,
+        Piece::Bishop => 300.0,
+        Piece::Rook => 500.0,
+        Piece::Queen => 900.0,
+        Piece::King => f64::INFINITY,
+    }
+}
+
+#[inline]
+fn bitboard_piece_value(bitboard: BitBoard, board: &Board) -> f64 {
+    bitboard.map(|sq| board.piece_on(sq).map(|p| piece_weight(&p)).unwrap_or(0.0)).sum()
 }
 
 #[cfg(test)]
@@ -117,7 +155,7 @@ mod test {
         let board = Board::from_str("4kp2/8/8/8/8/8/PPPPPPPP/RNBQKBNR b KQ - 0 1").unwrap();
         assert_eq!(
             evaluate(board),
-            (1 - (8 + 2 * 3 + 2 * 3 + 2 * 5 + 9)) as f64
+            100.0 * (1 - (8 + 2 * 3 + 2 * 3 + 2 * 5 + 9)) as f64
         );
     }
 }
