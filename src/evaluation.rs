@@ -182,7 +182,7 @@ fn evaluate(board: Board) -> f64 {
                 None => {
                     // FIXME: evaluation heuristics like pinned opponent's pieces will not work when
                     // we are in check
-                    return color_score;
+                    return color_score - 50.0;
                 }
             },
         };
