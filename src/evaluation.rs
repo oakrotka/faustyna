@@ -1,9 +1,11 @@
-use std::cmp::Ordering;
+use std::time::{Duration, Instant};
 
 use chess::{BitBoard, Board, BoardStatus, ChessMove, Color, MoveGen, Piece};
 use rapidhash::RapidHashMap;
 
-const DEPTH: u64 = 4;
+const MAX_PLY: u64 = u64::MAX;
+
+const TIME_TO_THINK: Duration = Duration::from_millis(10);
 
 const ATTACK_PIECES: [Piece; 5] = [
     Piece::Pawn,
@@ -13,28 +15,68 @@ const ATTACK_PIECES: [Piece; 5] = [
     Piece::Queen,
 ];
 
-pub fn choose_move(board: &Board) -> ChessMove {
-    let mut alpha = f64::NEG_INFINITY;
-    let mut transposition_table = RapidHashMap::<u64, f64>::default();
+pub fn choose_move(board: Board) -> ChessMove {
+    let start_time = Instant::now();
 
-    let (choice, score) = MoveGen::new_legal(board)
-        .map(|chess_move| {
-            let score = -alpha_beta(
-                board.make_move_new(chess_move),
-                alpha,
+    let mut previous_state = board;
+
+    let mut choice = ChessMove::default();
+    let mut score = f64::NEG_INFINITY;
+
+    for depth in 1..MAX_PLY {
+        let mut transposition_table = RapidHashMap::<u64, f64>::default();
+
+        // searching the previously found best move first for better alpha pruning
+        if depth > 1 {
+            (previous_state, _, score) = search_moves(
+                previous_state,
                 f64::INFINITY,
-                DEPTH,
+                f64::NEG_INFINITY,
+                1,
                 &mut transposition_table,
             );
-            if score > alpha {
-                alpha = score;
+
+            if score == f64::INFINITY {
+                break;
             }
-            (chess_move, score)
-        })
-        .max_by(|(_, val1), (_, val2)| val1.partial_cmp(val2).unwrap_or(Ordering::Less))
-        .expect("no moves left");
+        }
+
+        // search the tree thoroughly this time
+        let (found_state, found_move, found_score) =
+            search_moves(board, score, f64::INFINITY, depth, &mut transposition_table);
+
+        if found_score > score || depth == 1 {
+            (previous_state, choice, score) = (found_state, found_move, found_score);
+        }
+
+        if score == f64::INFINITY
+            || previous_state.status() != BoardStatus::Ongoing
+            || start_time.elapsed() >= TIME_TO_THINK
+        {
+            break;
+        }
+    }
+
     println!("score cp {score}");
     choice
+}
+
+fn search_moves(
+    board: Board,
+    alpha: f64,
+    beta: f64,
+    depth: u64,
+    transposition_table: &mut RapidHashMap<u64, f64>,
+) -> (Board, ChessMove, f64) {
+    if let Some(score) = transposition_table.get(&board.get_hash()) {
+        return (Board::default(), ChessMove::default(), *score);
+    }
+
+    let (best_board, best_move, score) = alpha_beta(board, alpha, beta, depth, transposition_table);
+
+    transposition_table.insert(board.get_hash(), score);
+
+    (best_board, best_move, score)
 }
 
 fn alpha_beta(
@@ -43,41 +85,41 @@ fn alpha_beta(
     beta: f64,
     depth: u64,
     transposition_table: &mut RapidHashMap<u64, f64>,
-) -> f64 {
-    if let Some(score) = transposition_table.get(&board.get_hash()) {
-        return *score;
-    }
-
+) -> (Board, ChessMove, f64) {
     if depth == 0 {
         let score = evaluate(board);
         transposition_table.insert(board.get_hash(), score);
-        return score;
+        return (board, ChessMove::default(), score);
     }
 
     match board.status() {
-        BoardStatus::Checkmate => f64::NEG_INFINITY,
-        BoardStatus::Stalemate => 0.0,
+        BoardStatus::Checkmate => (board, ChessMove::default(), f64::NEG_INFINITY),
+        BoardStatus::Stalemate => (board, ChessMove::default(), f64::NEG_INFINITY),
         BoardStatus::Ongoing => {
+            let mut best_state = Board::default();
+            let mut best_move = ChessMove::default();
+
             for chess_move in MoveGen::new_legal(&board) {
-                let score = -alpha_beta(
+                let (found_state, _, neg_score) = search_moves(
                     board.make_move_new(chess_move),
                     -beta,
                     -alpha,
                     depth - 1,
                     transposition_table,
                 );
+                let score = -neg_score;
 
                 if score >= beta {
-                    transposition_table.insert(board.get_hash(), beta);
-                    return beta;
+                    return (found_state, chess_move, score);
                 }
                 if score > alpha {
+                    best_state = found_state;
+                    best_move = chess_move;
                     alpha = score;
                 }
             }
 
-            transposition_table.insert(board.get_hash(), alpha);
-            alpha
+            (best_state, best_move, alpha)
         }
     }
 }
@@ -145,14 +187,14 @@ mod test {
 
     use crate::evaluation::{choose_move, evaluate};
 
-    // #[test]
-    // fn mate_in_one() {
-    //     let board = Board::from_str("8/k7/8/5K2/8/8/5R2/1R6 w - - 0 1").unwrap();
-    //     assert_eq!(
-    //         choose_move(&board),
-    //         ChessMove::new(Square::F2, Square::A2, None)
-    //     );
-    // }
+    #[test]
+    fn mate_in_one() {
+        let board = Board::from_str("8/k7/8/5K2/8/8/5R2/1R6 w - - 0 1").unwrap();
+        assert_eq!(
+            choose_move(board),
+            ChessMove::new(Square::F2, Square::A2, None)
+        );
+    }
 
     #[test]
     fn evaluate_board_pieces() {
@@ -172,7 +214,7 @@ mod test {
         println!("{}", evaluate(board.make_move_new(ChessMove::new(Square::B5, Square::B4, None))));
         */
         assert_eq!(
-            choose_move(&board),
+            choose_move(board),
             ChessMove::new(Square::F8, Square::G7, None)
         );
     }

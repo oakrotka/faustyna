@@ -52,7 +52,7 @@ pub fn event_loop() -> ! {
                 state = game;
             }
             UciMessage::Go { .. } => {
-                let choice = evaluation::choose_move(&state);
+                let choice = evaluation::choose_move(state);
                 let response = UciMessage::BestMove {
                     best_move: choice,
                     ponder: None,
