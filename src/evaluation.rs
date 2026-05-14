@@ -25,6 +25,8 @@ pub fn choose_move(board: Board) -> ChessMove {
     let mut score = f64::NEG_INFINITY;
 
     for depth in 1..MAX_PLY {
+        println!("info depth {depth}");
+
         let mut transposition_table = RapidHashMap::<u64, f64>::default();
         let mut iterations = TIME_CHECK_FREQUENCY;
 
@@ -72,7 +74,7 @@ pub fn choose_move(board: Board) -> ChessMove {
         }
     }
 
-    println!("score cp {score}");
+    println!("info score cp {score}");
     choice
 }
 
