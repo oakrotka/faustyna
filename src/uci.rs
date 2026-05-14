@@ -7,7 +7,7 @@ use std::{
 use chess::Board;
 use vampirc_uci::{self as uci, Serializable, UciMessage};
 
-use crate::{ENGINE_NAME, evaluation};
+use crate::{ENGINE_NAME, search};
 
 pub fn event_loop() -> ! {
     let stdin = io::stdin();
@@ -52,7 +52,7 @@ pub fn event_loop() -> ! {
                 state = game;
             }
             UciMessage::Go { .. } => {
-                let choice = evaluation::choose_move(state);
+                let choice = search::choose_move(state);
                 let response = UciMessage::BestMove {
                     best_move: choice,
                     ponder: None,
