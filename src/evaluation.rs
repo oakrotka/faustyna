@@ -261,4 +261,24 @@ mod test {
             ChessMove::new(Square::F8, Square::G7, None)
         );
     }
+
+    #[test]
+    fn faustyna_please() {
+        let position = "rn1k1b1r/pp5p/2p1bp1p/4N3/4P3/1PP5/P3BPPP/RN2K2R w KQ - 0 12";
+        let board = Board::from_str(position).unwrap();
+        let mv = choose_move(board);
+        println!("{mv}");
+        assert_ne!(
+            mv,
+            ChessMove::new(Square::H1, Square::F1, None)
+        );
+    }
+
+    #[test]
+    fn im_losing_my_mind() {
+        let position = "8/ppk4p/3R4/7p/8/1PP1K3/P5r1/8 w - - 1 29";
+        let board = Board::from_str(position).unwrap();
+        let mv = choose_move(board);
+        assert_ne!(mv, ChessMove::new(Square::D6, Square::D7, None));
+    }
 }
