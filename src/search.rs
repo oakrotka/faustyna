@@ -129,7 +129,7 @@ fn alpha_beta(
 
     match board.status() {
         BoardStatus::Checkmate => Some((board, ChessMove::default(), f64::NEG_INFINITY)),
-        BoardStatus::Stalemate => Some((board, ChessMove::default(), f64::NEG_INFINITY)),
+        BoardStatus::Stalemate => Some((board, ChessMove::default(), 0.0)),
         BoardStatus::Ongoing => {
             let mut best_state = Board::default();
             let mut best_move = ChessMove::default();
