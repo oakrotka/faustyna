@@ -35,6 +35,7 @@ pub fn choose_move(board: Board) -> ChessMove {
                 &mut iterations,
                 start_time
             ) {
+                SearchResult::BestMove(_, score, state) if depth % 2 == 0 => (-score, state),
                 SearchResult::BestMove(_, score, state) => (score, state),
                 SearchResult::OutOfTime | SearchResult::OutOfTimeWithResult(..) => break,
                 SearchResult::CacheHit(_) | SearchResult::Leaf(..) => {
@@ -171,13 +172,15 @@ fn alpha_beta(
                     }
 
                     // out of time
-                    partial @ (SearchResult::OutOfTimeWithResult(_, _)
-                    | SearchResult::OutOfTime) => {
-                        // we should always prefer the earlier value and only return the newly found
-                        // one if it is strictly greater
-                        return match Some(partial).gt(&best_value) {
-                            false => best_value.unwrap_or(partial).timeout(),
-                            true => partial,
+                    SearchResult::OutOfTime => {
+                        return best_value.unwrap_or(SearchResult::OutOfTime);
+                    }
+                    SearchResult::OutOfTimeWithResult(_, neg_score) => {
+                        let score = -neg_score;
+                        let oot_res = SearchResult::OutOfTimeWithResult(chess_move, score);
+                        return match score.gt(&best_score) {
+                            false => best_value.unwrap_or(oot_res).timeout(),
+                            true => oot_res,
                         };
                     }
                 };
@@ -287,5 +290,14 @@ mod test {
         let board = Board::from_str(position).unwrap();
         let choice = choose_move(board);
         assert_ne!(choice, ChessMove::new(Square::D6, Square::D7, None));
+    }
+
+    #[test]
+    fn dont_make_illegal_moves_please() {
+        let position = "rnbqk1nr/3p1ppp/1pp1p3/3P4/1p2P3/5N2/PP3PPP/RNBQKB1R b KQkq - 0 7";
+        let board = Board::from_str(position).unwrap();
+        let choice = choose_move(board);
+        println!("{choice}");
+        board.make_move_new(choice);
     }
 }
